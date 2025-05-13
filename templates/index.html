@@ -1,0 +1,43 @@
+<!-- templates/index.html -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Phishing Risk Analyzer</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 2em; }
+    textarea { width: 100%; height: 200px; }
+    .result { margin-top: 1em; }
+    .result h2 { color: #c00; }
+    table { border-collapse: collapse; margin-top:0.5em; }
+    th, td { border:1px solid #ccc; padding:0.3em 0.6em; }
+  </style>
+</head>
+<body>
+  <h1>Phishing Risk Analyzer</h1>
+  <form method="post">
+    <label for="body">Email Body:</label><br>
+    <textarea id="body" name="body">{{ body or "" }}</textarea><br><br>
+    <button type="submit">Analyze</button>
+  </form>
+
+  {% if risk is defined %}
+    <div class="result">
+      <h2>Risk Score: {{ risk }}%</h2>
+      <h3>Label Probabilities</h3>
+      <table>
+        <tr><th>Bias</th><th>Probability</th></tr>
+        {% for label, p in probs.items() %}
+          <tr><td>{{ label }}</td><td>{{ p }}</td></tr>
+        {% endfor %}
+      </table>
+      <h3>Triggered Cues</h3>
+      <ul>
+        {% for cue in triggered %}
+          <li>{{ cue }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+</body>
+</html>
