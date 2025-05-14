@@ -20,7 +20,7 @@ LABEL_COLS = [
 ]
 THRESHOLDS = {
     "Anchoring":              0.50,
-    "Illusory Truth Effect":  0.75,
+    "Illusory Truth Effect":  0.80,
     "Information Overload":   0.50,
     "Mere-Exposure Effect":   0.50
 }
@@ -40,14 +40,19 @@ def compute_phishing_risk(body: str):
         logits = model(**inputs).logits
     probs = torch.sigmoid(logits).squeeze().tolist()
 
-    # Overall risk score: highest bias probability ×100
-    risk_pct = max(probs) * 100
+    # Determine which biases trigger based on per-label thresholds
+    triggered = [
+        LABEL_COLS[i]
+        for i, p in enumerate(probs)
+        if p >= THRESHOLDS[LABEL_COLS[i]]
+    ]
 
-    # Only trigger the top-scoring bias if above its threshold
-    max_idx = int(torch.argmax(logits))
-    triggered = []
-    if probs[max_idx] >= THRESHOLDS[LABEL_COLS[max_idx]]:
-        triggered = [LABEL_COLS[max_idx]]
+    # Overall risk score: max probability among triggered cues, else 0
+    if triggered:
+        triggered_probs = [p for i, p in enumerate(probs) if LABEL_COLS[i] in triggered]
+        risk_pct = max(triggered_probs) * 100
+    else:
+        risk_pct = 0.0
 
     return risk_pct, dict(zip(LABEL_COLS, probs)), triggered
 
