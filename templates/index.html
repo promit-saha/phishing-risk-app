@@ -1,4 +1,3 @@
-<!-- templates/index.html -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -21,7 +20,7 @@
     <button type="submit">Analyze</button>
   </form>
 
-  {% if risk is defined %}
+  {% if risk is not none %}
     <div class="result">
       <h2>Risk Score: {{ risk }}%</h2>
       <h3>Label Probabilities</h3>
