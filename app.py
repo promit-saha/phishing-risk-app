@@ -2,7 +2,6 @@ import os
 from flask import Flask, request, render_template
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import torch
-import joblib
 
 app = Flask(__name__)
 
@@ -11,10 +10,6 @@ MODEL_REPO = "Promitsaha1/best_model_LLM_annotation"
 tokenizer = AutoTokenizer.from_pretrained(MODEL_REPO)
 model = AutoModelForSequenceClassification.from_pretrained(MODEL_REPO)
 model.eval()
-
-# ─── Load pre-fitted calibrator (created offline) ───
-CALIBRATOR_PATH = "calibrator.joblib"
-calibrator = joblib.load(CALIBRATOR_PATH)
 
 # ─── Bias labels and per-label trigger thresholds ───
 LABEL_COLS = [
@@ -25,7 +20,7 @@ LABEL_COLS = [
 ]
 THRESHOLDS = {
     "Anchoring":              0.50,
-    "Illusory Truth Effect":  0.70,
+    "Illusory Truth Effect":  0.75,
     "Information Overload":   0.50,
     "Mere-Exposure Effect":   0.50
 }
@@ -39,13 +34,11 @@ def compute_phishing_risk(body: str):
         max_length=128,
         return_tensors="pt"
     )
-    
-    # Raw model logits
+
+    # Predict logits and convert to probabilities
     with torch.no_grad():
         logits = model(**inputs).logits
-
-    # Calibrated probabilities (expects shape [1, num_labels])
-    probs = calibrator.predict_proba(logits.cpu().numpy())[0].tolist()
+    probs = torch.sigmoid(logits).squeeze().tolist()
 
     # Overall risk score: highest bias probability ×100
     risk_pct = max(probs) * 100
