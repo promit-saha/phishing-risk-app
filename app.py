@@ -5,21 +5,27 @@ import torch
 
 app = Flask(__name__)
 
-# ─── Load from your Hugging Face repo ───
+# ─── Load model/tokenizer from Hugging Face ───
 MODEL_REPO = "Promitsaha1/best_model_LLM_annotation"
-tokenizer  = AutoTokenizer.from_pretrained(MODEL_REPO)
-model      = AutoModelForSequenceClassification.from_pretrained(MODEL_REPO)
-
-# ─── Your four bias labels ───
+tokenizer = AutoTokenizer.from_pretrained(MODEL_REPO, local_files_only=False)
+model = AutoModelForSequenceClassification.from_pretrained(MODEL_REPO, local_files_only=False)
+model.eval()
+\ n# ─── Bias labels and per-label trigger thresholds ───
 LABEL_COLS = [
     "Anchoring",
     "Illusory Truth Effect",
     "Information Overload",
     "Mere-Exposure Effect"
 ]
+THRESHOLDS = {
+    "Anchoring":              0.50,
+    "Illusory Truth Effect":  0.70,
+    "Information Overload":   0.50,
+    "Mere-Exposure Effect":   0.50
+}
 
 def compute_phishing_risk(body: str):
-    # Tokenize & run model
+    # Tokenize input text
     inputs = tokenizer(
         body,
         truncation=True,
@@ -27,15 +33,21 @@ def compute_phishing_risk(body: str):
         max_length=128,
         return_tensors="pt"
     )
+    
+    # Predict and compute sigmoid probabilities
     with torch.no_grad():
         logits = model(**inputs).logits
-        probs  = torch.sigmoid(logits).squeeze().tolist()  # [p_anchor, p_illusory, p_info, p_mere]
+        probs = torch.sigmoid(logits).squeeze().tolist()
 
-    # Risk score: highest probability ×100
+    # Overall risk score: highest bias probability ×100
     risk_pct = max(probs) * 100
 
-    # Which biases triggered at ≥50%?
-    triggered = [LABEL_COLS[i] for i, p in enumerate(probs) if p >= 0.5]
+    # Determine which biases trigger based on per-label thresholds
+    triggered = [
+        LABEL_COLS[i]
+        for i, p in enumerate(probs)
+        if p >= THRESHOLDS[LABEL_COLS[i]]
+    ]
 
     return risk_pct, dict(zip(LABEL_COLS, probs)), triggered
 
@@ -61,6 +73,5 @@ def index():
     return render_template("index.html", **context)
 
 if __name__ == "__main__":
-    # Railway (and many hosts) set the PORT env var for you
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
