@@ -2,14 +2,20 @@ import os
 from flask import Flask, request, render_template
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import torch
+import joblib
 
 app = Flask(__name__)
 
 # ─── Load model/tokenizer from Hugging Face ───
 MODEL_REPO = "Promitsaha1/best_model_LLM_annotation"
-tokenizer = AutoTokenizer.from_pretrained(MODEL_REPO, local_files_only=False)
-model = AutoModelForSequenceClassification.from_pretrained(MODEL_REPO, local_files_only=False)
+tokenizer = AutoTokenizer.from_pretrained(MODEL_REPO)
+model = AutoModelForSequenceClassification.from_pretrained(MODEL_REPO)
 model.eval()
+
+# ─── Load pre-fitted calibrator (created offline) ───
+CALIBRATOR_PATH = "calibrator.joblib"
+calibrator = joblib.load(CALIBRATOR_PATH)
+
 # ─── Bias labels and per-label trigger thresholds ───
 LABEL_COLS = [
     "Anchoring",
@@ -34,20 +40,21 @@ def compute_phishing_risk(body: str):
         return_tensors="pt"
     )
     
-    # Predict and compute sigmoid probabilities
+    # Raw model logits
     with torch.no_grad():
         logits = model(**inputs).logits
-        probs = torch.sigmoid(logits).squeeze().tolist()
+
+    # Calibrated probabilities (expects shape [1, num_labels])
+    probs = calibrator.predict_proba(logits.cpu().numpy())[0].tolist()
 
     # Overall risk score: highest bias probability ×100
     risk_pct = max(probs) * 100
 
-    # Determine which biases trigger based on per-label thresholds
-    triggered = [
-        LABEL_COLS[i]
-        for i, p in enumerate(probs)
-        if p >= THRESHOLDS[LABEL_COLS[i]]
-    ]
+    # Only trigger the top-scoring bias if above its threshold
+    max_idx = int(torch.argmax(logits))
+    triggered = []
+    if probs[max_idx] >= THRESHOLDS[LABEL_COLS[max_idx]]:
+        triggered = [LABEL_COLS[max_idx]]
 
     return risk_pct, dict(zip(LABEL_COLS, probs)), triggered
 
