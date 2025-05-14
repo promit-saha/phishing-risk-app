@@ -1,0 +1,14 @@
+from sklearn.calibration import CalibratedClassifierCV
+import joblib
+
+# Assume `sk_model` is your HuggingFace wrapper,
+# X_val_texts is a list of strings, and y_val_illu is the IllusoryTruth binary labels.
+calibrator = CalibratedClassifierCV(
+    base_estimator=sk_model,
+    method="isotonic",
+    cv="prefit"
+)
+calibrator.fit(X_val_texts, y_val_illu)
+
+# This writes out calibrator.joblib next to your app.py
+joblib.dump(calibrator, "calibrator.joblib")
