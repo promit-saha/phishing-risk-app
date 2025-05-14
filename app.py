@@ -10,7 +10,7 @@ MODEL_REPO = "Promitsaha1/best_model_LLM_annotation"
 tokenizer = AutoTokenizer.from_pretrained(MODEL_REPO, local_files_only=False)
 model = AutoModelForSequenceClassification.from_pretrained(MODEL_REPO, local_files_only=False)
 model.eval()
-\ n# ─── Bias labels and per-label trigger thresholds ───
+# ─── Bias labels and per-label trigger thresholds ───
 LABEL_COLS = [
     "Anchoring",
     "Illusory Truth Effect",
